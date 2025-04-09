@@ -1,6 +1,6 @@
 import styled from "@emotion/native";
 import { Card } from "../../models/Card";
-import { useContext, useState } from "react";
+import { useContext, useState, useEffect } from "react";
 import { Image, Modal, View } from "react-native";
 import { Button, getTokens, SizableText, XStack, YStack } from "tamagui";
 import { useCardShow } from "./useCardShow";
@@ -34,14 +34,32 @@ export const CardShow = (props: CardDetailsProps) => {
     setCardUpdateModalVisible,
     cardFromDb,
   } = useCardShow(card);
+  const { cardsUpdated, cardsIndexUpdated } = useContext(SearchContext);
+
   const insets = useSafeAreaInsets();
-  const { goBack } = useNavigation();
+  const navigation = useNavigation();
+
+  const goBack = () => {
+    cardsUpdated(!cardsIndexUpdated);
+    navigation.goBack();
+  };
   const theme = useTheme();
   const colorTokens = getTokens().color;
   const store = useStore();
   const [frontImage, setFrontImage] = useState<string>("");
   const [backImage, setBackImage] = useState<string>("");
-  const { cardsUpdated, cardsIndexUpdated } = useContext(SearchContext);
+
+  const [storeVersion, setStoreVersion] = useState(0);
+
+  useEffect(() => {
+    const listenerId = store?.addTableListener("cards", () => {
+      setStoreVersion((prev) => prev + 1);
+    });
+
+    return () => {
+      if (listenerId && store) store.delListener(listenerId);
+    };
+  }, [store, storeVersion]);
 
   const setBase64Image = (
     imageUrl: string,
@@ -86,19 +104,30 @@ export const CardShow = (props: CardDetailsProps) => {
       back_art: backImage,
       possessed: possessedToUpdate as number,
     };
+
     store?.addRow("cards", _card, false);
-    cardsUpdated(cardsIndexUpdated);
+    setPossessedToUpdate(possessedToUpdate);
+    cardsUpdated(!cardsIndexUpdated);
     setCardUpdateModalVisible(false);
   };
 
   const updateCard = () => {
     if (card === undefined) return;
     const id = getCardId(card?.id);
+
+    if (!id) {
+      console.warn("Card not found in store, adding instead of updating");
+      addCard();
+      return;
+    }
+
     store?.setPartialRow("cards", id, {
-      ...cardFromDb,
       possessed: possessedToUpdate,
     });
-    cardsUpdated(cardsIndexUpdated);
+
+    setPossessedToUpdate(possessedToUpdate);
+
+    cardsUpdated(!cardsIndexUpdated);
     setCardUpdateModalVisible(false);
   };
 
@@ -220,9 +249,11 @@ export const CardShow = (props: CardDetailsProps) => {
               <Button
                 theme="blue"
                 onPress={() => {
-                  if (store?.getRowIds("cards")[0] === getCardId(card?.id)) {
+                  if (cardFromDb) {
                     updateCard();
-                  } else addCard();
+                  } else {
+                    addCard();
+                  }
                 }}
               >
                 Valider
