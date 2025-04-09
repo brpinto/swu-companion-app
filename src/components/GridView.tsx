@@ -4,7 +4,7 @@ import { FlashList, ListRenderItem } from "@shopify/flash-list";
 import { Spinner, YStack, Text } from "tamagui";
 import { router } from "expo-router";
 import { useStore } from "tinybase/ui-react";
-import { Row } from "tinybase/store";
+import { useState, useEffect, useMemo } from "react";
 
 export const GridView = ({
   cards,
@@ -15,25 +15,56 @@ export const GridView = ({
 }) => {
   const winWidth = Dimensions.get("screen").width;
   const store = useStore();
+  const [forceUpdate, setForceUpdate] = useState(0);
+
+  // Listen for changes to the cards table and force a re-render
+  useEffect(() => {
+    // Create a listener for TinyBase store changes that forces a re-render
+    const listenerId = store?.addTableListener("cards", () => {
+      setForceUpdate((prev) => prev + 1);
+
+      // Add a short timeout to ensure the update has time to propagate
+      setTimeout(() => {
+        setForceUpdate((prev) => prev + 1);
+      }, 100);
+    });
+
+    // Clean up listener when component unmounts
+    return () => {
+      if (listenerId && store) store.delListener(listenerId);
+    };
+  }, [store]);
+
+  // Refresh component when cards prop changes
+  useEffect(() => {
+    setForceUpdate((prev) => prev + 1);
+  }, [cards]);
+
+  // Create a map of card names to their possession counts
+  // This is more efficient than looking up each card individually in renderItem
+  const possessionMap = useMemo(() => {
+    const map = new Map<string, number>();
+
+    if (store) {
+      const rowIds = store.getRowIds("cards");
+      for (const id of rowIds) {
+        const row = store.getRow("cards", id);
+        if (row && row.name) {
+          const possessed =
+            row.possessed !== undefined
+              ? parseInt(String(row.possessed), 10)
+              : 0;
+          map.set(String(row.name), possessed);
+        }
+      }
+    }
+
+    return map;
+  }, [store, forceUpdate]); // Recalculate when store changes or forceUpdate changes
 
   const renderItem: ListRenderItem<Card> = ({ item }) => {
-    const getCardByName = (name: string): Row | undefined => {
-      const table = store?.getTable("cards");
-
-      const res = Object.values(table ?? {});
-      const _card: Row[] = res.filter((el) => {
-        return el.name === name;
-      });
-      return _card[0];
-    };
-
-    const cardFromDb = getCardByName(item?.name ?? "");
-    let possessed: number | undefined = 0;
-    if (cardFromDb)
-      possessed =
-        cardFromDb && cardFromDb?.possessed !== undefined
-          ? parseInt(cardFromDb?.possessed.valueOf().toString(), 10)
-          : 0;
+    // Get possession count from our pre-calculated map
+    const possessed = item?.name ? possessionMap.get(item.name) || 0 : 0;
 
     return (
       <Pressable
@@ -125,11 +156,13 @@ export const GridView = ({
         </YStack>
       ) : (
         <FlashList
+          key={`card-list-${forceUpdate}`}
           showsVerticalScrollIndicator={false}
           data={cards}
           renderItem={renderItem}
           estimatedItemSize={200}
           numColumns={3}
+          extraData={forceUpdate}
         />
       )}
     </View>

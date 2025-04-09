@@ -11,48 +11,86 @@ export const useCardShow = (card: Card | undefined) => {
   const db = openDatabase();
   const store = useStore();
 
+  const [storeVersion, setStoreVersion] = useState(0);
+
+  useEffect(() => {
+    const listenerId = store?.addTableListener("cards", () => {
+      setStoreVersion((prev) => prev + 1);
+    });
+
+    return () => {
+      if (listenerId && store) store.delListener(listenerId);
+    };
+  }, [store]);
+
   const flipCard = () => {
     if (cardSide === "Avant") setCarSide("Arrière");
     else setCarSide("Avant");
   };
 
-  const getCardByName = (name: string): Row | undefined => {
-    const table = store?.getTable("cards");
+  const findCardInStore = (searchCard: Card | undefined): Row | undefined => {
+    if (!searchCard || !store) return undefined;
 
-    const res = Object.values(table ?? {});
-    const _card: Row[] = res.filter((el) => {
-      return el.name === name;
-    });
-    return _card[0];
+    if (searchCard.id) {
+      const rowIds = store.getRowIds("cards");
+      for (const id of rowIds) {
+        const row = store.getRow("cards", id);
+        if (row?.id === searchCard.id) {
+          return row; // Found exact match by ID
+        }
+      }
+    }
+
+    if (searchCard.name) {
+      const rowIds = store.getRowIds("cards");
+      for (const id of rowIds) {
+        const row = store.getRow("cards", id);
+
+        if (
+          row?.name === searchCard.name &&
+          (row?.number === searchCard.number || row?.set === searchCard.set)
+        ) {
+          return row;
+        }
+      }
+    }
+
+    return undefined;
   };
 
-  const cardFromDb = getCardByName(card?.name ?? "");
-  const possessed: number = cardFromDb
-    ? parseInt(cardFromDb?.possessed.toString(), 10)
-    : 0;
-  const [possessedToUpdate, setPossessedToUpdate] = useState<number>(possessed);
+  const [cardFromDb, setCardFromDb] = useState<Row | undefined>(undefined);
+  const [possessed, setPossessed] = useState<number>(0);
+  const [possessedToUpdate, setPossessedToUpdate] = useState<number>(0);
 
   useEffect(() => {
-    setPossessedToUpdate(possessed);
-  }, [possessed]);
+    if (card) {
+      const foundCard = findCardInStore(card);
+      setCardFromDb(foundCard);
+
+      const possessedCount =
+        foundCard && foundCard.possessed !== undefined
+          ? parseInt(String(foundCard.possessed), 10)
+          : 0;
+
+      setPossessed(possessedCount);
+      setPossessedToUpdate(possessedCount);
+    }
+  }, [card, store, storeVersion, possessed]);
 
   const getCardId = (_id: number | undefined): string => {
-    const rowIds = store?.getSortedRowIds("cards");
+    if (!_id || !store) return "";
 
-    let cardId = "";
+    const rowIds = store.getRowIds("cards");
 
-    rowIds?.forEach((id) => {
-      const row = store?.getRow("cards", id);
+    for (const id of rowIds) {
+      const row = store.getRow("cards", id);
       if (row?.id === _id) {
-        cardId = id;
+        return id;
       }
-    });
-    return cardId;
-  };
+    }
 
-  if (card !== undefined) {
-    getCardByName(card?.name);
-  }
+    return "";
+  };
 
   return {
     cardSide,
@@ -65,5 +103,6 @@ export const useCardShow = (card: Card | undefined) => {
     cardUptateModalVisible,
     setCardUpdateModalVisible,
     getCardId,
+    findCardInStore,
   };
 };

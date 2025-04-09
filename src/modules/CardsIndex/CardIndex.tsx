@@ -7,11 +7,37 @@ import { useCardsQuery } from "../../queries/useCardsQuery";
 import { Text } from "tamagui";
 import * as Device from "expo-device";
 import { Dimensions } from "react-native";
+import { useSearchContext } from "../../contexts/SearchContext";
+import { useEffect, useState } from "react";
+import { useNavigation } from "expo-router";
 
 const screenHeight = Dimensions.get("window").height;
 
 export const CardsIndex = () => {
-  const { cardsIndex, cardsIndexIsLoading } = useCardsQuery();
+  const { cardsIndex, cardsIndexIsLoading, refetchCardIndex } = useCardsQuery();
+  const { cardsIndexUpdated } = useSearchContext();
+  const navigation = useNavigation();
+  const [hasFocus, setHasFocus] = useState(false);
+
+  useEffect(() => {
+    refetchCardIndex();
+  }, [cardsIndexUpdated, refetchCardIndex]);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("focus", () => {
+      setHasFocus(true);
+      refetchCardIndex();
+    });
+
+    const blurUnsubscribe = navigation.addListener("blur", () => {
+      setHasFocus(false);
+    });
+
+    return () => {
+      unsubscribe();
+      blurUnsubscribe();
+    };
+  }, [navigation, refetchCardIndex, hasFocus]);
 
   return (
     <SafeContainer edges={["left", "right"]}>

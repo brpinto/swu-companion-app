@@ -47,5 +47,5 @@ export const SearchProvider = ({
 };
 
 export const useSearchContext = () => {
-  useContext(SearchContext);
+  return useContext(SearchContext);
 };
