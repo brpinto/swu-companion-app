@@ -111,9 +111,20 @@ export const CardShow = (props: CardDetailsProps) => {
     setCardUpdateModalVisible(false);
   };
 
+  const deleteCard = (rowId: string) => {
+    store?.delRow("cards", rowId);
+    cardsUpdated(!cardsIndexUpdated);
+    setCardUpdateModalVisible(false);
+  };
+
   const updateCard = () => {
     if (card === undefined) return;
     const id = getCardId(card?.id);
+
+    if (possessedToUpdate === 0) {
+      deleteCard(id);
+      return;
+    }
 
     if (!id) {
       console.warn("Card not found in store, adding instead of updating");
@@ -233,7 +244,11 @@ export const CardShow = (props: CardDetailsProps) => {
               <XStack alignItems="center" gap={10}>
                 <Button
                   theme="blue"
-                  onPress={() => setPossessedToUpdate(possessedToUpdate - 1)}
+                  onPress={() =>
+                    possessedToUpdate > 0
+                      ? setPossessedToUpdate(possessedToUpdate - 1)
+                      : null
+                  }
                 >
                   -
                 </Button>
