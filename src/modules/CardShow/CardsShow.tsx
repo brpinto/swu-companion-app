@@ -244,7 +244,11 @@ export const CardShow = (props: CardDetailsProps) => {
               <XStack alignItems="center" gap={10}>
                 <Button
                   theme="blue"
-                  onPress={() => possessedToUpdate > 0 ? setPossessedToUpdate(possessedToUpdate - 1) : null}
+                  onPress={() =>
+                    possessedToUpdate > 0
+                      ? setPossessedToUpdate(possessedToUpdate - 1)
+                      : null
+                  }
                 >
                   -
                 </Button>
